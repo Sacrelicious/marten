@@ -85,6 +85,9 @@ namespace Marten.Storage
 
             // TODO -- ensure the system type here too?
             var feature = _features.FindFeature(featureType);
+
+            feature.AssertValidNames(_options);
+
             if (feature == null)
                 throw new ArgumentOutOfRangeException(nameof(featureType),
                     $"Unknown feature type {featureType.FullName}");
@@ -133,18 +136,27 @@ namespace Marten.Storage
                         {
                             cmd.ExecuteNonQuery();
                             _options.Logger().SchemaChange(ddl);
-                            _checks[featureType] = true;
-                            if (feature.StorageType != featureType)
-                            {
-                                _checks[feature.StorageType] = true;
-                            }
+                            RegisterCheck(featureType, feature);
                         }
                         catch (Exception e)
                         {
                             throw new MartenCommandException(cmd, e);
                         }
                     }
+                    else if (patch.Difference == SchemaPatchDifference.None)
+                    {
+                        RegisterCheck(featureType, feature);
+                    }
                 }
+            }
+        }
+
+        private void RegisterCheck(Type featureType, IFeatureSchema feature)
+        {
+            _checks[featureType] = true;
+            if (feature.StorageType != featureType)
+            {
+                _checks[feature.StorageType] = true;
             }
         }
 
@@ -197,14 +209,11 @@ namespace Marten.Storage
             {
                 var assignment = IdAssignmentFor<T>();
 
-                var mapping = MappingFor(typeof(T));
+                var mapping = MappingFor(typeof(T)).Root as DocumentMapping;
 
-                if (mapping is DocumentMapping)
-                {
-                    return new BulkLoader<T>(_options.Serializer(), mapping.As<DocumentMapping>(), assignment);
-                }
+                if (mapping == null) throw new ArgumentOutOfRangeException("Marten cannot do bulk inserts on documents of type " + typeof(T).FullName);
 
-                throw new ArgumentOutOfRangeException("T", "Marten cannot do bulk inserts of " + typeof(T).FullName);
+                return new BulkLoader<T>(_options.Serializer(), mapping, assignment);
             }).As<IBulkLoader<T>>();
         }
 

@@ -43,3 +43,11 @@ i.command-description {
 .command-section h4 {
     margin-bottom: 10px;
 }
+
+.navbar-inverse {
+     background-color: transparent;
+}
+
+nav.related-links {
+    margin-bottom: 21px;
+}

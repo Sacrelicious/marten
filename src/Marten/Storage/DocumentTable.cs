@@ -11,8 +11,11 @@ namespace Marten.Storage
     {
         public DocumentTable(DocumentMapping mapping) : base(mapping.Table)
         {
-            var pgIdType = TypeMappings.GetPgType(mapping.IdMember.GetMemberType());
-            var pgTextType = TypeMappings.GetPgType(string.Empty.GetType());
+            // validate to ensure document has an Identity field or property
+            mapping.Validate();
+
+            var pgIdType = TypeMappings.GetPgType(mapping.IdMember.GetMemberType(), mapping.EnumStorage);
+            var pgTextType = TypeMappings.GetPgType(string.Empty.GetType(), mapping.EnumStorage);
 
             var idColumn = new TableColumn("id", pgIdType);
             if (mapping.TenancyStyle == TenancyStyle.Conjoined)
@@ -53,11 +56,9 @@ namespace Marten.Storage
                 AddColumn<DeletedAtColumn>();
             }
 
-
             Indexes.AddRange(mapping.Indexes);
             ForeignKeys.AddRange(mapping.ForeignKeys);
         }
-
 
         public string BuildTemplate(string template)
         {
@@ -89,7 +90,7 @@ namespace Marten.Storage
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
             if (obj.GetType() != this.GetType()) return false;
-            return Equals((DocumentTable) obj);
+            return Equals((DocumentTable)obj);
         }
 
         public override int GetHashCode()
@@ -122,7 +123,7 @@ namespace Marten.Storage
         {
             Directive = "DEFAULT FALSE";
             CanAdd = true;
-		}
+        }
     }
 
     public class DeletedAtColumn : SystemColumn
@@ -140,7 +141,7 @@ namespace Marten.Storage
         {
             CanAdd = true;
             Directive = $"DEFAULT '{mapping.AliasFor(mapping.DocumentType)}'";
-			      mapping.AddIndex(DocumentMapping.DocumentTypeColumn);
+            mapping.AddIndex(DocumentMapping.DocumentTypeColumn);
         }
     }
 
@@ -182,7 +183,7 @@ namespace Marten.Storage
 
         public override string AddColumnSql(Table table)
         {
-            return $"{base.AddColumnSql(table)};update {table.Identifier} set {_field.UpdateSqlFragment()};";
+            return $"{base.AddColumnSql(table)}update {table.Identifier} set {_field.UpdateSqlFragment()};";
         }
     }
 }

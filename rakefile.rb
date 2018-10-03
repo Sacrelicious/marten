@@ -4,7 +4,8 @@ require 'json'
 
 COMPILE_TARGET = ENV['config'].nil? ? "debug" : ENV['config']
 RESULTS_DIR = "results"
-BUILD_VERSION = '2.0.0'
+BUILD_VERSION = '3.0.0'
+
 CONNECTION = ENV['connection']
 
 tc_build_number = ENV["BUILD_NUMBER"]
@@ -12,7 +13,7 @@ build_revision = tc_build_number || Time.new.strftime('5%H%M')
 build_number = "#{BUILD_VERSION}.#{build_revision}"
 BUILD_NUMBER = build_number
 
-task :ci => [:connection, :version, :default, :storyteller, 'pack']
+task :ci => [:connection, :default, :storyteller, 'pack']
 
 task :default => [:mocha, :test, :storyteller]
 
@@ -47,18 +48,6 @@ task :version do
 
   }
 
-  puts "Writing src/CommonAssemblyInfo.cs..."
-  File.open('src/CommonAssemblyInfo.cs', 'w') do |file|
-    file.write "using System.Reflection;\n"
-    file.write "using System.Runtime.InteropServices;\n"
-    file.write "[assembly: AssemblyDescription(\"#{options[:description]}\")]\n"
-    file.write "[assembly: AssemblyProduct(\"#{options[:product_name]}\")]\n"
-    file.write "[assembly: AssemblyCopyright(\"#{options[:copyright]}\")]\n"
-    file.write "[assembly: AssemblyTrademark(\"#{options[:trademark]}\")]\n"
-    file.write "[assembly: AssemblyVersion(\"#{build_number}\")]\n"
-    file.write "[assembly: AssemblyFileVersion(\"#{options[:file_version]}\")]\n"
-    file.write "[assembly: AssemblyInformationalVersion(\"#{options[:informational_version]}\")]\n"
-  end
 end
 
 desc 'Builds the connection string file'
@@ -76,12 +65,12 @@ end
 
 desc 'Compile the code'
 task :compile => [:clean, :restore] do
-  sh "dotnet build src/Marten.Testing/Marten.Testing.csproj --framework netcoreapp2.0 --configuration #{COMPILE_TARGET}"
+  sh "dotnet build src/Marten.Testing/Marten.Testing.csproj --framework netcoreapp2.1 --configuration #{COMPILE_TARGET}"
 end
 
 desc 'Run the unit tests'
 task :test => [:compile] do
-  sh 'dotnet test src/Marten.Testing/Marten.Testing.csproj --framework netcoreapp2.0'
+  sh 'dotnet test src/Marten.Testing/Marten.Testing.csproj --framework netcoreapp2.1'
 end
 
 
@@ -93,21 +82,23 @@ end
 desc "Run the storyteller specifications"
 task :storyteller => [:compile] do
 	Dir.chdir("src/Marten.Storyteller") do
-	  system "dotnet storyteller run -r artifacts --culture en-US"
+	  system "dotnet run --framework netcoreapp2.1 --culture en-US"
 	end
 end
 
 desc "Run the storyteller specifications"
 task :open_st => [:compile] do
 	Dir.chdir("src/Marten.Storyteller") do
-	  system "dotnet storyteller open --culture en-US"
+	  system "dotnet storyteller open --framework netcoreapp2.1 --culture en-US"
 	end
 end
 
 "Launches the documentation project in editable mode"
 task :docs do
-	sh "dotnet restore"
-	sh "dotnet stdocs run -v #{BUILD_VERSION}"
+	Dir.chdir("tools/stdocs") do
+	  sh "dotnet restore"
+	  sh "dotnet stdocs run -d ../../documentation -c ../../src -v #{BUILD_VERSION}"
+	end  
 end
 
 "Exports the documentation to jasperfx.github.io/marten - requires Git access to that repo though!"
@@ -125,9 +116,11 @@ task :publish do
 		end
 	end
 	
-	sh "dotnet restore"
-	sh "dotnet stdocs export doc-target ProjectWebsite --version #{BUILD_VERSION} --project marten"
-	
+	Dir.chdir("tools/stdocs") do
+	  sh "dotnet restore"
+	  sh "dotnet stdocs export ../../doc-target ProjectWebsite -d ../../documentation -c ../../src --version #{BUILD_VERSION} --project marten"
+	end
+
 	Dir.chdir "doc-target" do
 		sh "git add --all"
 		sh "git commit -a -m \"Documentation Update for #{BUILD_VERSION}\" --allow-empty"
